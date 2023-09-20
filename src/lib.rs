@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use std::collections::HashMap;
+use std::num::ParseIntError;
 use std::{fs, fmt};
 
 fn nearest_bipartite_neighbour(x: &isize, target: &Vec<isize>) -> isize {
@@ -261,7 +262,7 @@ pub fn run(config: Config) -> Result<(), GrepError> {
 
     let hits = search_text(&config.key1, &config.key2, &contents);
     println!("\n-------------------------------------------\n");
-    for i in 0..10 {
+    for i in 0..config.results {
         let sentence = get_nearby_text(hits[i].0, hits[i].1, &contents);
         let fmt_sentence = format_sentence(&sentence, &config.key1, &config.key2);
 
@@ -277,6 +278,7 @@ pub struct Config {
     pub key1: String,
     pub key2: String,
     pub file_path: String,
+    pub results: usize,
 }
 
 impl Config {
@@ -290,14 +292,20 @@ impl Config {
         let key2 = args[2].clone();
         let file_path = args[3].clone();
 
-        Ok(Config { key1, key2, file_path })
+        if let Some(num_str) = args.get(4) {
+            let num = num_str.parse().map_err(GrepError::BadNumParseError)?;
+            Ok(Config{ key1, key2, file_path, results: num })
+        } else {
+            Ok(Config { key1, key2, file_path, results: 5 })
+        }
     }
 }
 
 #[derive(Debug)]
 pub enum GrepError{
     BadArgsError(usize),
-    BadFilePathError(std::io::Error)
+    BadFilePathError(std::io::Error),
+    BadNumParseError(ParseIntError)
 }
 
 impl fmt::Display for GrepError {
@@ -305,6 +313,7 @@ impl fmt::Display for GrepError {
         match self {
             GrepError::BadArgsError(num) => write!(f, "Couldn't handle {} args, expected 3", num-1),
             GrepError::BadFilePathError(inner) => write!(f, "File read error: {}", inner),
+            GrepError::BadNumParseError(inner) => write!(f, "Unable to interpret number of matches to find, error: {}", inner)
             // Add formatting for other error variants here
         }
     }
