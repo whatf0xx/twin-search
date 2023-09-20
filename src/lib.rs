@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use std::collections::HashMap;
 use std::{fs, fmt};
 
 fn nearest_bipartite_neighbour(x: &isize, target: &Vec<isize>) -> isize {
@@ -53,19 +54,85 @@ fn find_nearest_neighbours(xs: &Vec<isize>, ys: &Vec<isize>) -> Vec<(isize, isiz
         sanitized
 }
 
+fn make_occurences_table(word: &str) -> HashMap<char, Vec<usize>> {
+    let mut occurences: HashMap<char, Vec<usize>> = HashMap::new();
+    word.chars().enumerate().for_each(
+        |(i, c)| {
+            if let Some(positions) = occurences.get_mut(&c) {
+                positions.push(i);
+            } else {
+                occurences.insert(c, vec![i]);
+            }
+        }
+    );
+
+    occurences
+}
+
+fn make_bad_chars_table(key: &str) -> HashMap<char, HashMap<usize, Option<usize>>> {
+    let occurences = make_occurences_table(&key);
+    let mut bad_chars: HashMap<char, HashMap<usize, Option<usize>>> = HashMap::new();
+
+    let key_length = key.len();
+
+    occurences.keys().for_each(
+        |c| {
+            let mut shifts: HashMap<usize, Option<usize>> = HashMap::new();
+            let mut j: usize = 0;
+            for i in 0..key_length {
+                let positions: Vec<usize> = occurences.get(&c).unwrap().to_vec();
+                if i == positions[j] {
+                    shifts.insert(i, None);  // this is a 'blank' value that should never normally be found
+                    j += if j < (positions.len() - 1) { 1 } else { 0 };
+                } else if i < positions[j] {
+                    shifts.insert(i, Some(key_length));
+                } else {
+                    shifts.insert(i, Some(i - positions[j]));
+                }
+            }
+
+            bad_chars.insert(*c, shifts);
+        }
+    );
+
+    bad_chars
+
+}
+
 fn find_occurences_in_text(key: &str, text: &str) -> Vec<usize> {
     let text_chars = text.chars().collect::<Vec<char>>();
-    let n = text_chars.len();
-    let m = key.chars().collect::<Vec<char>>().len();
-    let key_clone = String::from(key);
+    let key_chars = key.chars().collect::<Vec<char>>();
+
+    let text_length = text_chars.len();
+    let key_length = key_chars.len();
+    
+    let bad_chars_table = make_bad_chars_table(key);
     
     let mut indices = Vec::new();
-    for i in 0..(n - m + 1) {
-        let test_text = text_chars[i..i+m].iter().collect::<String>();
-        if test_text == key_clone {
-            indices.push(i);
+    let mut i = key_length - 1;
+
+    while i < text_length {
+        let mut success_flag = false;
+        for j in 0..key_length {  // check backwards that the characters match
+            if text_chars[i - j] == key_chars[key_length - 1 - j] {// good, continue
+                if j == key_length - 1 { success_flag = true; i += key_length; }  // undefined if key can i.e., overlap with itself?
+                continue
+            } else {  // no match, work out how much to shift and then break the inner loop
+                if let Some(shift_table) = bad_chars_table.get(&text_chars[i-j]) {
+                    if let Some(Some(shift)) = shift_table.get(&j) {  // this is a bit horrible...
+                        i += shift;
+                    }  // this loop should never fail
+                } else {  // but from here we access letters in text not in key, i.e., shift by the key length
+                    i += key_length;
+                }
+                break;
+            }
+        }
+        if success_flag {
+            indices.push(i - key_length);
         }
     }
+
 
     indices
 }
@@ -117,8 +184,8 @@ fn get_sentence_end(index: usize, text: &str) -> usize {
         i += 1;
         current = characters[i];
     }
+    
     i
-
 }
 
 fn get_nearby_text(i1: usize, i2: usize, text: &str) -> String{
