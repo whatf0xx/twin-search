@@ -112,10 +112,13 @@ fn find_occurences_in_text(key: &str, text: &str) -> Vec<usize> {
     let mut i = key_length - 1;
 
     while i < text_length {
-        let mut success_flag = false;
-        for j in 0..key_length {  // check backwards that the characters match
+        'word_search: for j in 0..key_length {  // check backwards that the characters match
             if text_chars[i - j] == key_chars[key_length - 1 - j] {// good, continue
-                if j == key_length - 1 { success_flag = true; i += key_length; }  // undefined if key can i.e., overlap with itself?
+                if j == key_length - 1 { 
+                    indices.push(i + 1 - key_length);
+                    i += key_length;  // undefined if key can i.e., overlap with itself?
+                    break 'word_search;
+                } 
                 continue
             } else {  // no match, work out how much to shift and then break the inner loop
                 // println!("{:?}", bad_chars_table);  // get rid of this
@@ -130,9 +133,6 @@ fn find_occurences_in_text(key: &str, text: &str) -> Vec<usize> {
                 }
                 break;
             }
-        }
-        if success_flag {
-            indices.push(i - key_length);
         }
     }
 
