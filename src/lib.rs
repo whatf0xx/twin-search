@@ -122,10 +122,7 @@ fn find_occurences_in_text(key: &str, text: &str) -> Vec<usize> {
                 } 
                 continue
             } else {  // no match, work out how much to shift and then break the inner loop
-                // println!("{:?}", bad_chars_table);  // get rid of this
-                // println!("{:?}", text_chars[i-j]);  // get rid of this
                 if let Some(shift_table) = bad_chars_table.get(&text_chars[i-j]) {
-                    // println!("{:?}", shift_table);  // get rid of this
                     if let Some(Some(shift)) = shift_table.get(&(key_length - j - 1)) {  // this is a bit horrible...
                         i += shift;
                     }  // this loop should never fail
