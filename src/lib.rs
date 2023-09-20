@@ -118,8 +118,11 @@ fn find_occurences_in_text(key: &str, text: &str) -> Vec<usize> {
                 if j == key_length - 1 { success_flag = true; i += key_length; }  // undefined if key can i.e., overlap with itself?
                 continue
             } else {  // no match, work out how much to shift and then break the inner loop
+                // println!("{:?}", bad_chars_table);  // get rid of this
+                // println!("{:?}", text_chars[i-j]);  // get rid of this
                 if let Some(shift_table) = bad_chars_table.get(&text_chars[i-j]) {
-                    if let Some(Some(shift)) = shift_table.get(&j) {  // this is a bit horrible...
+                    // println!("{:?}", shift_table);  // get rid of this
+                    if let Some(Some(shift)) = shift_table.get(&(key_length - j - 1)) {  // this is a bit horrible...
                         i += shift;
                     }  // this loop should never fail
                 } else {  // but from here we access letters in text not in key, i.e., shift by the key length
