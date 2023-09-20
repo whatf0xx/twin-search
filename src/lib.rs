@@ -313,7 +313,7 @@ impl fmt::Display for GrepError {
         match self {
             GrepError::BadArgsError(num) => write!(f, "Couldn't handle {} args, expected 3", num-1),
             GrepError::BadFilePathError(inner) => write!(f, "File read error: {}", inner),
-            GrepError::BadNumParseError(inner) => write!(f, "Unable to interpret number of matches to find, error: {}", inner)
+            GrepError::BadNumParseError(inner) => write!(f, "Unable to interpret number of matches to find: {}", inner)
             // Add formatting for other error variants here
         }
     }
