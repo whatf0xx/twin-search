@@ -16,9 +16,4 @@ fn main() {
         println!("Application error: {e}");
         process::exit(1);
     }
-
-    // let msg = String::from("\x1b[31mThis text is red,\x1b[0m this text is normal, \x1b[32mThis text is green.\x1b[0m");
-    // println!("{msg}");
-    // let vec: Vec<char> = msg.chars().collect();
-    // println!("{:?}", vec);
 }

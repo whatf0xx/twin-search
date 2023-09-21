@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::num::ParseIntError;
+use std::cmp::min;
 use std::{fs, fmt};
 
 fn nearest_bipartite_neighbour(x: &isize, target: &Vec<isize>) -> isize {
@@ -138,7 +139,7 @@ fn find_occurences_in_text(key: &str, text: &str) -> Vec<usize> {
     indices
 }
 
-fn search_text(key1: &str, key2: &str, text: &str) -> Vec<(usize, usize)>{
+fn search_text(key1: &str, key2: &str, text: &str, max_sep: usize) -> Vec<(usize, usize)>{
     let positions1: Vec<usize> = find_occurences_in_text(key1, text);
     let positions2: Vec<usize> = find_occurences_in_text(key2, text);
     
@@ -148,6 +149,7 @@ fn search_text(key1: &str, key2: &str, text: &str) -> Vec<(usize, usize)>{
     let signed_result: Vec<(isize, isize)> = find_nearest_neighbours(&nums1, &nums2);
     signed_result
         .into_iter()
+        .take_while(|(x, y)| ((x-y).abs() as usize) < max_sep)
         .map(|(x, y)|  (x as usize, y as usize))
         .collect()
 }
@@ -257,9 +259,10 @@ fn format_sentence(sentence: &str, red_word: &str, green_word: &str) -> String {
 pub fn run(config: Config) -> Result<(), GrepError> {
     let contents = fs::read_to_string(config.file_path).map_err(GrepError::BadFilePathError)?;
 
-    let hits = search_text(&config.key1, &config.key2, &contents);
+    let hits = search_text(&config.key1, &config.key2, &contents, config.max_sep);
     println!("\n-------------------------------------------\n");
-    for i in 0..config.results {
+    let actual_results: usize = min(config.no_results, hits.len());  // prevent panic on overflow if we don't find sufficient pairs
+    for i in 0..actual_results {
         let sentence = get_nearby_text(hits[i].0, hits[i].1, &contents);
         let fmt_sentence = format_sentence(&sentence, &config.key1, &config.key2);
 
@@ -275,32 +278,72 @@ pub struct Config {
     pub key1: String,
     pub key2: String,
     pub file_path: String,
-    pub results: usize,
+    pub no_results: usize,
+    pub max_sep: usize
 }
 
 impl Config {
     pub fn build(args: &[String]) -> Result<Config, GrepError> {
-        // --snip--
         if args.len() < 4 {
-            return Err(GrepError::BadArgsError(args.len()));
+            return Err(GrepError::BadNoArgsError(args.len()));
         }
 
         let key1 = args[1].clone();
         let key2 = args[2].clone();
         let file_path = args[3].clone();
 
-        if let Some(num_str) = args.get(4) {
-            let num = num_str.parse().map_err(GrepError::BadNumParseError)?;
-            Ok(Config{ key1, key2, file_path, results: num })
-        } else {
-            Ok(Config { key1, key2, file_path, results: 5 })
+        if args.len() == 4 {
+            return Ok(Config { key1, key2, file_path, no_results: 5, max_sep: 500 });  // this is the basic configuration
+        } else if args.len() == 5 {
+            return Err(GrepError::IncompleteSpecifier(String::from(&args[4])));
+        } else if args.len() == 7 {
+            return Err(GrepError::IncompleteSpecifier(String::from(&args[6])));
         }
+
+        // Using specifiers it is possible to change the number of results searched for (-n [num]) or the maximum permissible
+        // separation between keys in a pair (-S [sep]). N.B. if these two don't "match up", double_grep will fall back to the
+        // lesser of the two, so might not always provide [num] results.
+
+        let mut no_results: usize = 5;
+        let mut max_sep: usize = 500;
+        
+        if args[4] == String::from("-n") {  // replace me with a parsing state machine that updates a default config?
+            if let Some(num_str) = args.get(5) {
+                no_results = num_str.parse().map_err(GrepError::BadNumParseError)?;
+            }
+        } else if args[4] == String::from("-S") {
+            if let Some(num_str) = args.get(5) {
+                max_sep = num_str.parse().map_err(GrepError::BadNumParseError)?;
+            }
+        } else {
+            return Err(GrepError::BadSpecifier(String::from(&args[4])));
+        }
+
+        if args.len() == 6 {
+            return Ok(Config{ key1, key2, file_path, no_results, max_sep });
+        }
+
+        if args[6] == String::from("-n") {
+            if let Some(num_str) = args.get(7) {
+                no_results = num_str.parse().map_err(GrepError::BadNumParseError)?;
+            }
+        } else if args[6] == String::from("-S") {
+            if let Some(num_str) = args.get(7) {
+                max_sep = num_str.parse().map_err(GrepError::BadNumParseError)?;
+            }
+        } else {
+            return Err(GrepError::BadSpecifier(String::from(&args[4])));
+        }
+
+        Ok(Config{ key1, key2, file_path, no_results, max_sep })
     }
 }
 
 #[derive(Debug)]
 pub enum GrepError{
-    BadArgsError(usize),
+    BadNoArgsError(usize),
+    IncompleteSpecifier(String),
+    BadSpecifier(String),
     BadFilePathError(std::io::Error),
     BadNumParseError(ParseIntError)
 }
@@ -308,7 +351,9 @@ pub enum GrepError{
 impl fmt::Display for GrepError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            GrepError::BadArgsError(num) => write!(f, "Couldn't handle {} args, expected 3", num-1),
+            GrepError::BadNoArgsError(num) => write!(f, "Couldn't handle {} args, expected 3", num-1),
+            GrepError::IncompleteSpecifier(s) => write!(f, "Missing specifier to accompany '{}'", s),
+            GrepError::BadSpecifier(s) => write!(f, "Unknown specifier '{}'", s),
             GrepError::BadFilePathError(inner) => write!(f, "File read error: {}", inner),
             GrepError::BadNumParseError(inner) => write!(f, "Unable to interpret number of matches to find: {}", inner)
             // Add formatting for other error variants here
@@ -376,6 +421,6 @@ mod tests{
         let key1: &str = "quick";
         let key2: &str = "fox";
 
-        assert_eq!(search_text(key1, key2, text), vec![(4, 16)]);
+        assert_eq!(search_text(key1, key2, text, 500), vec![(4, 16)]);
     }
 }
