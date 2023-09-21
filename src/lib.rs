@@ -309,11 +309,11 @@ impl Config {
         
         if args[4] == String::from("-n") {  // replace me with a parsing state machine that updates a default config?
             if let Some(num_str) = args.get(5) {
-                no_results = num_str.parse().map_err(GrepError::BadNumParseError)?;
+                no_results = num_str.parse().map_err(GrepError::BadNoResultsParseError)?;
             }
         } else if args[4] == String::from("-S") {
             if let Some(num_str) = args.get(5) {
-                max_sep = num_str.parse().map_err(GrepError::BadNumParseError)?;
+                max_sep = num_str.parse().map_err(GrepError::BadMaxSepParseError)?;
             }
         } else {
             return Err(GrepError::BadSpecifier(String::from(&args[4])));
@@ -325,11 +325,11 @@ impl Config {
 
         if args[6] == String::from("-n") {
             if let Some(num_str) = args.get(7) {
-                no_results = num_str.parse().map_err(GrepError::BadNumParseError)?;
+                no_results = num_str.parse().map_err(GrepError::BadNoResultsParseError)?;
             }
         } else if args[6] == String::from("-S") {
             if let Some(num_str) = args.get(7) {
-                max_sep = num_str.parse().map_err(GrepError::BadNumParseError)?;
+                max_sep = num_str.parse().map_err(GrepError::BadMaxSepParseError)?;
             }
         } else {
             return Err(GrepError::BadSpecifier(String::from(&args[4])));
@@ -340,12 +340,13 @@ impl Config {
 }
 
 #[derive(Debug)]
-pub enum GrepError{
+pub enum GrepError {
     BadNoArgsError(usize),
     IncompleteSpecifier(String),
     BadSpecifier(String),
     BadFilePathError(std::io::Error),
-    BadNumParseError(ParseIntError)
+    BadNoResultsParseError(ParseIntError),
+    BadMaxSepParseError(ParseIntError)
 }
 
 impl fmt::Display for GrepError {
@@ -355,8 +356,8 @@ impl fmt::Display for GrepError {
             GrepError::IncompleteSpecifier(s) => write!(f, "Missing specifier to accompany '{}'", s),
             GrepError::BadSpecifier(s) => write!(f, "Unknown specifier '{}'", s),
             GrepError::BadFilePathError(inner) => write!(f, "File read error: {}", inner),
-            GrepError::BadNumParseError(inner) => write!(f, "Unable to interpret number of matches to find: {}", inner)
-            // Add formatting for other error variants here
+            GrepError::BadNoResultsParseError(inner) => write!(f, "Unable to interpret number of matches to find: {}", inner),
+            GrepError::BadMaxSepParseError(inner) => write!(f, "Unable to interpret maximum separation: {}", inner)
         }
     }
 }
