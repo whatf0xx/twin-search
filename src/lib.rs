@@ -101,7 +101,7 @@ fn make_bad_chars_table(key: &str) -> HashMap<char, HashMap<usize, Option<usize>
 
 }
 
-fn find_occurences_in_text(key: &str, text: &str) -> Vec<usize> {
+fn find_occurences_in_text(key: &str, text: &str) -> Option<Vec<usize>> {
     let text_chars = text.chars().collect::<Vec<char>>();
     let key_chars = key.chars().collect::<Vec<char>>();
 
@@ -136,22 +136,38 @@ fn find_occurences_in_text(key: &str, text: &str) -> Vec<usize> {
     }
 
 
-    indices
+    if indices.len() > 0 {
+        Some(indices)
+    } else {
+        None
+    }
+
 }
 
-fn search_text(key1: &str, key2: &str, text: &str, max_sep: usize) -> Vec<(usize, usize)>{
-    let positions1: Vec<usize> = find_occurences_in_text(key1, text);
-    let positions2: Vec<usize> = find_occurences_in_text(key2, text);
+fn search_text(key1: &str, key2: &str, text: &str, max_sep: usize) -> Result<Vec<(usize, usize)>, GrepError> {
+    let mut positions1: Vec<usize> = Vec::new();
+    if let Some(indices) = find_occurences_in_text(key1, text) {
+        indices.iter().for_each(|index| { positions1.push(*index) });
+    } else {
+        return Err(GrepError::WordNotFoundError(String::from(key1)));
+    }
+
+    let mut positions2: Vec<usize> = Vec::new();
+    if let Some(indices) = find_occurences_in_text(key2, text) {
+        indices.iter().for_each(|index| { positions2.push(*index) });
+    }else {
+        return Err(GrepError::WordNotFoundError(String::from(key2)));
+    }
     
     let nums1: Vec<isize> = positions1.into_iter().map(|x| x as isize).collect();
     let nums2: Vec<isize> = positions2.into_iter().map(|x| x as isize).collect();
 
     let signed_result: Vec<(isize, isize)> = find_nearest_neighbours(&nums1, &nums2);
-    signed_result
+    Ok(signed_result
         .into_iter()
         .take_while(|(x, y)| ((x-y).abs() as usize) < max_sep)
         .map(|(x, y)|  (x as usize, y as usize))
-        .collect()
+        .collect())
 }
 
 fn get_sentence_start(index: usize, text: &str) -> usize {
@@ -207,7 +223,10 @@ fn format_sentence(sentence: &str, red_word: &str, green_word: &str) -> String {
     let red_length: usize = red_word.len();
     let green_length: usize = green_word.len();
 
-    let red_starts: Vec<usize> = find_occurences_in_text(&red_word, &sentence);
+    let mut red_starts: Vec<usize> = Vec::new();
+    if let Some(indices) = find_occurences_in_text(&red_word, &sentence) {
+        indices.iter().for_each(|index| { red_starts.push(*index) });
+    }
 
     let mut offset: usize = 0;
 
@@ -231,7 +250,10 @@ fn format_sentence(sentence: &str, red_word: &str, green_word: &str) -> String {
     );
 
     let temp_sentence: String = s_chars.iter().collect();
-    let green_starts: Vec<usize> = find_occurences_in_text(&green_word, &temp_sentence);
+    let mut green_starts: Vec<usize> = Vec::new();
+    if let Some(indices) = find_occurences_in_text(&green_word, &temp_sentence) {
+        indices.iter().for_each(|index| { green_starts.push(*index) });
+    }
 
     let mut offset: usize = 0;
 
@@ -259,7 +281,7 @@ fn format_sentence(sentence: &str, red_word: &str, green_word: &str) -> String {
 pub fn run(config: Config) -> Result<(), GrepError> {
     let contents = fs::read_to_string(config.file_path).map_err(GrepError::BadFilePathError)?;
 
-    let hits = search_text(&config.key1, &config.key2, &contents, config.max_sep);
+    let hits = search_text(&config.key1, &config.key2, &contents, config.max_sep)?;
     println!("\n-------------------------------------------\n");
     let actual_results: usize = min(config.no_results, hits.len());  // prevent panic on overflow if we don't find sufficient pairs
     for i in 0..actual_results {
@@ -346,7 +368,8 @@ pub enum GrepError {
     BadSpecifier(String),
     BadFilePathError(std::io::Error),
     BadNoResultsParseError(ParseIntError),
-    BadMaxSepParseError(ParseIntError)
+    BadMaxSepParseError(ParseIntError),
+    WordNotFoundError(String)
 }
 
 impl fmt::Display for GrepError {
@@ -357,7 +380,8 @@ impl fmt::Display for GrepError {
             GrepError::BadSpecifier(s) => write!(f, "Unknown specifier '{}'", s),
             GrepError::BadFilePathError(inner) => write!(f, "File read error: {}", inner),
             GrepError::BadNoResultsParseError(inner) => write!(f, "Unable to interpret number of matches to find: {}", inner),
-            GrepError::BadMaxSepParseError(inner) => write!(f, "Unable to interpret maximum separation: {}", inner)
+            GrepError::BadMaxSepParseError(inner) => write!(f, "Unable to interpret maximum separation: {}", inner),
+            GrepError::WordNotFoundError(word) => write!(f, "Couldn't locate word '{}' in the file.", word)
         }
     }
 }
@@ -413,7 +437,7 @@ mod tests{
         let text: &str = "The quick brown fox jumped over the lazy dog. The quicker cat shot away.";
         let key: &str = "quick";
 
-        assert_eq!(find_occurences_in_text(key, text), vec![4, 50]);
+        assert_eq!(find_occurences_in_text(key, text), Some(vec![4, 50]));
     }
 
     #[test]
@@ -422,6 +446,6 @@ mod tests{
         let key1: &str = "quick";
         let key2: &str = "fox";
 
-        assert_eq!(search_text(key1, key2, text, 500), vec![(4, 16)]);
+        assert_eq!(search_text(key1, key2, text, 500).unwrap(), vec![(4, 16)]);
     }
 }
