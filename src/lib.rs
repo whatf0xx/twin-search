@@ -387,7 +387,7 @@ impl fmt::Display for GrepError {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use itertools::izip;
     use super::*;
 
